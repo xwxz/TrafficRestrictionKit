@@ -4,10 +4,41 @@ import Foundation
 public class TrafficRestrictionManager {
     // 使用数组存储所有限行规则
     private let rules: [TrafficRestrictionRule]
+    // 新增：存储节假日信息
+    private let holidays: [Holiday]
     
     // 初始化方法，可以传入自定义的规则
     public init(rules: [TrafficRestrictionRule] = TrafficRestrictionManager.defaultRules) {
         self.rules = rules
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy年MM月dd日"
+        // 元旦
+        let newYearStart = dateFormatter.date(from: "2025年01月01日")!
+        let newYearEnd = dateFormatter.date(from: "2025年01月01日")!
+        // 春节
+        let springFestivalStart = dateFormatter.date(from: "2025年01月28日")!
+        let springFestivalEnd = dateFormatter.date(from: "2025年02月04日")!
+        // 清明节
+        let qingmingStart = dateFormatter.date(from: "2025年04月04日")!
+        let qingmingEnd = dateFormatter.date(from: "2025年04月06日")!
+        // 劳动节
+        let laborDayStart = dateFormatter.date(from: "2025年05月01日")!
+        let laborDayEnd = dateFormatter.date(from: "2025年05月05日")!
+        // 端午节
+        let dragonBoatStart = dateFormatter.date(from: "2025年05月31日")!
+        let dragonBoatEnd = dateFormatter.date(from: "2025年06月02日")!
+        // 国庆节、中秋节
+        let nationalMidAutumnStart = dateFormatter.date(from: "2025年10月01日")!
+        let nationalMidAutumnEnd = dateFormatter.date(from: "2025年10月08日")!
+        
+        self.holidays = [
+            Holiday(startDate: newYearStart, endDate: newYearEnd, holidayName: "元旦"),
+            Holiday(startDate: springFestivalStart, endDate: springFestivalEnd, holidayName: "春节"),
+            Holiday(startDate: qingmingStart, endDate: qingmingEnd, holidayName: "清明节"),
+            Holiday(startDate: laborDayStart, endDate: laborDayEnd, holidayName: "劳动节"),
+            Holiday(startDate: dragonBoatStart, endDate: dragonBoatEnd, holidayName: "端午节"),
+            Holiday(startDate: nationalMidAutumnStart, endDate: nationalMidAutumnEnd, holidayName: "国庆节")
+        ]
     }
     
     // 默认的限行规则
@@ -68,8 +99,29 @@ public class TrafficRestrictionManager {
         return [rule1, rule2, rule3, rule4]
     }()
     
+    // 新增：判断是否为节假日的函数
+    private func isHoliday(_ date: Date) -> (isHoliday: Bool, holidayName: String?) {
+        let calendar = Calendar.current
+        for holiday in holidays {
+            let startComponents = calendar.dateComponents([.year,.month,.day], from: holiday.startDate)
+            let endComponents = calendar.dateComponents([.year,.month,.day], from: holiday.endDate)
+            let dateComponents = calendar.dateComponents([.year,.month,.day], from: date)
+            let start = calendar.date(from: startComponents)!
+            let end = calendar.date(from: endComponents)!
+            let targetDate = calendar.date(from: dateComponents)!
+            if targetDate >= start && targetDate <= end {
+                return (true, holiday.holidayName)
+            }
+        }
+        return (false, nil)
+    }
+    
     // 获取当前日期的限行信息
     public func getCurrentDateRestriction(currentDate: Date) -> String {
+        let (isHoliday, holidayName) = isHoliday(currentDate)
+        if isHoliday {
+            return "\(holidayName!)"
+        }
         let calendar = Calendar.current
         let weekday = calendar.component(.weekday, from: currentDate) // 1=Sunday, 2=Monday, ..., 7=Saturday
         
@@ -86,12 +138,10 @@ public class TrafficRestrictionManager {
         var current = currentDate
         
         for _ in 0..<7 {
-            let restriction = getRestriction(for: current)
-            if !restriction.restriction.isEmpty {
-                result.append(DateRestriction(date: formatDate(current), restriction: restriction.restriction))
-            } else {
-                result.append(DateRestriction(date: formatDate(current), restriction: "不限行"))
-            }
+            let (isHoliday, holidayName) = isHoliday(current)
+            let restriction = isHoliday ? "\(holidayName!)" : getRestriction(for: current).restriction
+                        
+            result.append(DateRestriction(date: formatDate(current), restriction: restriction))
             current = calendar.date(byAdding: .day, value: 1, to: current)!
         }
         
@@ -100,6 +150,10 @@ public class TrafficRestrictionManager {
     
     // 根据日期获取限行信息
     private func getRestriction(for date: Date) -> (restriction: String, dateStr: String) {
+        let (isHoliday, holidayName) = isHoliday(date)
+        if isHoliday {
+            return ("\(holidayName!)", formatDate(date))
+        }
         let calendar = Calendar.current
         let weekday = calendar.component(.weekday, from: date)
         if let dayOfWeek = DayOfWeek(rawValue: weekday) {
@@ -110,6 +164,10 @@ public class TrafficRestrictionManager {
     
     // 根据星期几和日期获取限行信息
     private func getRestriction(for dayOfWeek: DayOfWeek, on date: Date) -> (restriction: String, dateStr: String) {
+        let (isHoliday, holidayName) = isHoliday(date)
+        if isHoliday {
+            return ("\(holidayName!)", formatDate(date))
+        }
         for rule in rules {
             if date >= rule.startDate && date <= rule.endDate {
                 if let restriction = rule.restrictions[dayOfWeek] {
